@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="style.css">
+    <title>Sign In — SiteUpgrade</title>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+    <script src="firebase-config.js"></script>
+</head>
+<body class="auth-page">
+    <div class="aurora"></div>
+
+    <div class="auth-box">
+        <div class="auth-logo">SiteUpgrade</div>
+
+        <div class="auth-tabs">
+            <button class="auth-tab active" onclick="switchTab('login')">Log In</button>
+            <button class="auth-tab" onclick="switchTab('signup')">Sign Up</button>
+        </div>
+
+        <!-- LOGIN -->
+        <div class="auth-form" id="loginForm">
+            <input type="email" id="loginEmail" placeholder="Email" />
+            <input type="password" id="loginPass" placeholder="Password" />
+            <button class="glow-btn full" onclick="emailLogin()">
+                <div class="blur-ring"></div>
+                <span>Log In</span>
+            </button>
+            <div class="auth-divider">or</div>
+            <button class="google-btn" onclick="googleLogin()">
+                <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.2l6.7-6.7C35.8 2.5 30.2 0 24 0 14.6 0 6.6 5.4 2.6 13.3l7.8 6C12.3 13 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v8.5h12.7c-.6 3-2.3 5.5-4.8 7.2l7.5 5.8c4.4-4.1 7.1-10.1 7.1-17z"/><path fill="#FBBC05" d="M10.4 28.7A14.5 14.5 0 0 1 9.5 24c0-1.6.3-3.2.8-4.7l-7.8-6A23.9 23.9 0 0 0 0 24c0 3.9.9 7.5 2.6 10.7l7.8-6z"/><path fill="#34A853" d="M24 48c6.2 0 11.4-2 15.2-5.5l-7.5-5.8c-2 1.4-4.6 2.2-7.7 2.2-6.3 0-11.6-4.2-13.6-10l-7.8 6C6.6 42.6 14.6 48 24 48z"/></svg>
+                Continue with Google
+            </button>
+            <p class="auth-error" id="loginError"></p>
+        </div>
+
+        <!-- SIGNUP -->
+        <div class="auth-form hidden" id="signupForm">
+            <input type="text" id="signupName" placeholder="Full Name" />
+            <input type="email" id="signupEmail" placeholder="Email" />
+            <input type="password" id="signupPass" placeholder="Password (min 6 chars)" />
+
+            <!-- Confirmation code step -->
+            <div id="codeStep" class="hidden">
+                <p class="code-note">A confirmation code was sent to your email.</p>
+                <input type="text" id="codeInput" placeholder="Enter 6-digit code" maxlength="6" />
+                <button class="glow-btn full" onclick="verifyCode()">
+                    <div class="blur-ring"></div>
+                    <span>Verify & Create Account</span>
+                </button>
+            </div>
+
+            <div id="signupStep">
+                <button class="glow-btn full" onclick="sendCode()">
+                    <div class="blur-ring"></div>
+                    <span>Send Confirmation Code</span>
+                </button>
+            </div>
+
+            <div class="auth-divider">or</div>
+            <button class="google-btn" onclick="googleLogin()">
+                <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.2l6.7-6.7C35.8 2.5 30.2 0 24 0 14.6 0 6.6 5.4 2.6 13.3l7.8 6C12.3 13 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v8.5h12.7c-.6 3-2.3 5.5-4.8 7.2l7.5 5.8c4.4-4.1 7.1-10.1 7.1-17z"/><path fill="#FBBC05" d="M10.4 28.7A14.5 14.5 0 0 1 9.5 24c0-1.6.3-3.2.8-4.7l-7.8-6A23.9 23.9 0 0 0 0 24c0 3.9.9 7.5 2.6 10.7l7.8-6z"/><path fill="#34A853" d="M24 48c6.2 0 11.4-2 15.2-5.5l-7.5-5.8c-2 1.4-4.6 2.2-7.7 2.2-6.3 0-11.6-4.2-13.6-10l-7.8 6C6.6 42.6 14.6 48 24 48z"/></svg>
+                Continue with Google
+            </button>
+            <p class="auth-error" id="signupError"></p>
+        </div>
+
+        <a href="main.html" class="auth-back">← Back to site</a>
+    </div>
+
+    <script>
+        let generatedCode = null;
+        let pendingUser = null;
+
+        function switchTab(tab) {
+            document.querySelectorAll('.auth-tab').forEach((t, i) => t.classList.toggle('active', (i === 0) === (tab === 'login')));
+            document.getElementById('loginForm').classList.toggle('hidden', tab !== 'login');
+            document.getElementById('signupForm').classList.toggle('hidden', tab !== 'signup');
+        }
+
+        function emailLogin() {
+            const email = document.getElementById('loginEmail').value;
+            const pass = document.getElementById('loginPass').value;
+            const err = document.getElementById('loginError');
+            firebase.auth().signInWithEmailAndPassword(email, pass)
+                .then(() => window.location.href = 'main.html')
+                .catch(e => err.textContent = e.message);
+        }
+
+        function googleLogin() {
+            const provider = new firebase.auth.GoogleAuthProvider();
+            firebase.auth().signInWithPopup(provider)
+                .then(() => window.location.href = 'main.html')
+                .catch(e => document.getElementById('loginError').textContent = e.message);
+        }
+
+        async function sendCode() {
+            const name = document.getElementById('signupName').value.trim();
+            const email = document.getElementById('signupEmail').value.trim();
+            const pass = document.getElementById('signupPass').value;
+            const err = document.getElementById('signupError');
+
+            if (!name || !email || !pass) { err.textContent = 'Please fill in all fields.'; return; }
+            if (pass.length < 6) { err.textContent = 'Password must be at least 6 characters.'; return; }
+
+            generatedCode = Math.floor(100000 + Math.random() * 900000).toString();
+            pendingUser = { name, email, pass };
+
+            // Store code in Firestore temporarily
+            await db.collection('confirmCodes').doc(email).set({
+                code: generatedCode,
+                expires: Date.now() + 600000
+            });
+
+            // Use EmailJS to send the code
+            await emailjs.send('YOUR_SERVICE_ID', 'YOUR_TEMPLATE_ID', {
+                to_email: email,
+                to_name: name,
+                code: generatedCode
+            });
+
+            document.getElementById('signupStep').classList.add('hidden');
+            document.getElementById('codeStep').classList.remove('hidden');
+            err.textContent = '';
+        }
+
+        async function verifyCode() {
+            const input = document.getElementById('codeInput').value.trim();
+            const err = document.getElementById('signupError');
+            const snap = await db.collection('confirmCodes').doc(pendingUser.email).get();
+
+            if (!snap.exists) { err.textContent = 'Code expired. Please try again.'; return; }
+            const data = snap.data();
+
+            if (Date.now() > data.expires) { err.textContent = 'Code expired. Please try again.'; return; }
+            if (input !== data.code) { err.textContent = 'Incorrect code.'; return; }
+
+            try {
+                const cred = await firebase.auth().createUserWithEmailAndPassword(pendingUser.email, pendingUser.pass);
+                await cred.user.updateProfile({ displayName: pendingUser.name });
+                await db.collection('confirmCodes').doc(pendingUser.email).delete();
+                window.location.href = 'main.html';
+            } catch(e) {
+                err.textContent = e.message;
+            }
+        }
+
+        firebase.auth().onAuthStateChanged(user => {
+            if (user) window.location.href = 'main.html';
+        });
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+    <script>emailjs.init('YOUR_EMAILJS_PUBLIC_KEY');</script>
+</body>
+</html>

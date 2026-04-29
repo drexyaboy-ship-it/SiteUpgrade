@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="style.css">
+    <title>Admin — SiteUpgrade</title>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+    <script src="firebase-config.js"></script>
+</head>
+<body class="admin-page">
+
+    <div class="admin-sidebar">
+        <div class="admin-logo">⚙ Admin</div>
+        <nav class="admin-nav">
+            <button class="admin-nav-btn active" onclick="showPanel('orders')">📦 Orders</button>
+            <button class="admin-nav-btn" onclick="showPanel('faq')">❓ FAQ</button>
+            <button class="admin-nav-btn" onclick="showPanel('work')">🖼 Our Work</button>
+            <button class="admin-nav-btn" onclick="showPanel('offers')">⚡ What We Offer</button>
+            <button class="admin-nav-btn" onclick="showPanel('shop')">🛒 Shop</button>
+        </nav>
+        <button class="admin-logout" onclick="adminLogout()">← Exit Admin</button>
+    </div>
+
+    <div class="admin-content">
+
+        <!-- ORDERS -->
+        <div class="admin-panel active" id="panel-orders">
+            <h2>Orders</h2>
+            <div class="admin-table-wrap">
+                <table class="admin-table" id="ordersTable">
+                    <thead><tr><th>Email</th><th>Name</th><th>Package</th><th>Price</th><th>Status</th><th>Date</th><th>Action</th></tr></thead>
+                    <tbody id="ordersBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- FAQ -->
+        <div class="admin-panel" id="panel-faq">
+            <h2>FAQ</h2>
+            <div class="admin-add-form">
+                <input type="text" id="faqQ" placeholder="Question" />
+                <textarea id="faqA" placeholder="Answer" rows="3"></textarea>
+                <button class="glow-btn small" onclick="addFaq()"><div class="blur-ring"></div><span>Add FAQ</span></button>
+            </div>
+            <div id="faqAdmin"></div>
+        </div>
+
+        <!-- OUR WORK -->
+        <div class="admin-panel" id="panel-work">
+            <h2>Our Work</h2>
+            <div class="admin-add-form">
+                <input type="text" id="workTitle" placeholder="Project Title" />
+                <input type="text" id="workDesc" placeholder="Description" />
+                <input type="text" id="workImg" placeholder="Image URL (optional)" />
+                <input type="text" id="workColor" placeholder="Gradient CSS (e.g. linear-gradient(135deg,#ff0044,#220011))" />
+                <button class="glow-btn small" onclick="addWork()"><div class="blur-ring"></div><span>Add Project</span></button>
+            </div>
+            <div id="workAdmin"></div>
+        </div>
+
+        <!-- OFFERS -->
+        <div class="admin-panel" id="panel-offers">
+            <h2>What We Offer</h2>
+            <div class="admin-add-form">
+                <input type="text" id="offerIcon" placeholder="Emoji Icon (e.g. ⚡)" />
+                <input type="text" id="offerTitle" placeholder="Title" />
+                <textarea id="offerDesc" placeholder="Description" rows="2"></textarea>
+                <button class="glow-btn small" onclick="addOffer()"><div class="blur-ring"></div><span>Add Card</span></button>
+            </div>
+            <div id="offersAdmin"></div>
+        </div>
+
+        <!-- SHOP -->
+        <div class="admin-panel" id="panel-shop">
+            <h2>Shop Packages</h2>
+            <div class="admin-add-form">
+                <input type="text" id="shopBadge" placeholder="Badge (e.g. Starter)" />
+                <input type="text" id="shopName" placeholder="Package Name" />
+                <input type="number" id="shopPrice" placeholder="Price (numbers only)" />
+                <textarea id="shopFeatures" placeholder="Features — one per line" rows="4"></textarea>
+                <label class="admin-check"><input type="checkbox" id="shopFeatured" /> Mark as Featured</label>
+                <button class="glow-btn small" onclick="addShopItem()"><div class="blur-ring"></div><span>Add Package</span></button>
+            </div>
+            <div id="shopAdmin"></div>
+        </div>
+
+    </div>
+
+    <script>
+        // Auth guard
+        if (localStorage.getItem('isOwner') !== 'true') {
+            window.location.href = 'index.html';
+        }
+
+        function adminLogout() {
+            localStorage.removeItem('isOwner');
+            window.location.href = 'index.html';
+        }
+
+        function showPanel(name) {
+            document.querySelectorAll('.admin-panel').forEach(p => p.classList.remove('active'));
+            document.querySelectorAll('.admin-nav-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById('panel-' + name).classList.add('active');
+            event.target.classList.add('active');
+        }
+
+        // ── ORDERS ──
+        db.collection('orders').orderBy('date', 'desc').onSnapshot(snap => {
+            const body = document.getElementById('ordersBody');
+            body.innerHTML = '';
+            snap.forEach(doc => {
+                const d = doc.data();
+                const date = d.date ? new Date(d.date.toMillis()).toLocaleDateString() : '—';
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${d.email}</td>
+                    <td>${d.name || '—'}</td>
+                    <td>${d.package}</td>
+                    <td>$${d.price}</td>
+                    <td><span class="status-badge ${d.status}">${d.status}</span></td>
+                    <td>${date}</td>
+                    <td>
+                        <select onchange="updateOrderStatus('${doc.id}', this.value)">
+                            <option ${d.status==='pending'?'selected':''}>pending</option>
+                            <option ${d.status==='in progress'?'selected':''}>in progress</option>
+                            <option ${d.status==='completed'?'selected':''}>completed</option>
+                        </select>
+                        <button class="del-btn" onclick="deleteDoc('orders','${doc.id}')">✕</button>
+                    </td>
+                `;
+                body.appendChild(tr);
+            });
+        });
+
+        function updateOrderStatus(id, status) {
+            db.collection('orders').doc(id).update({ status });
+        }
+
+        // ── FAQ ──
+        function loadFaqAdmin() {
+            db.collection('faq').orderBy('order').onSnapshot(snap => {
+                const container = document.getElementById('faqAdmin');
+                container.innerHTML = '';
+                snap.forEach(doc => {
+                    const d = doc.data();
+                    const el = document.createElement('div');
+                    el.className = 'admin-item';
+                    el.innerHTML = `
+                        <div class="admin-item-content">
+                            <input class="admin-inline" value="${d.q}" onchange="updateFaq('${doc.id}','q',this.value)" />
+                            <textarea class="admin-inline" onchange="updateFaq('${doc.id}','a',this.value)" rows="2">${d.a}</textarea>
+                        </div>
+                        <button class="del-btn" onclick="deleteDoc('faq','${doc.id}')">✕</button>
+                    `;
+                    container.appendChild(el);
+                });
+            });
+        }
+
+        async function addFaq() {
+            const q = document.getElementById('faqQ').value.trim();
+            const a = document.getElementById('faqA').value.trim();
+            if (!q || !a) return;
+            const snap = await db.collection('faq').get();
+            await db.collection('faq').add({ q, a, order: snap.size });
+            document.getElementById('faqQ').value = '';
+            document.getElementById('faqA').value = '';
+        }
+
+        function updateFaq(id, field, val) {
+            db.collection('faq').doc(id).update({ [field]: val });
+        }
+
+        // ── WORK ──
+        function loadWorkAdmin() {
+            db.collection('work').orderBy('order').onSnapshot(snap => {
+                const container = document.getElementById('workAdmin');
+                container.innerHTML = '';
+                snap.forEach(doc => {
+                    const d = doc.data();
+                    const el = document.createElement('div');
+                    el.className = 'admin-item';
+                    el.innerHTML = `
+                        <div class="admin-item-content">
+                            <input class="admin-inline" value="${d.title}" onchange="updateWork('${doc.id}','title',this.value)" placeholder="Title"/>
+                            <input class="admin-inline" value="${d.desc}" onchange="updateWork('${doc.id}','desc',this.value)" placeholder="Description"/>
+                            <input class="admin-inline" value="${d.img||''}" onchange="updateWork('${doc.id}','img',this.value)" placeholder="Image URL"/>
+                            <input class="admin-inline" value="${d.color||''}" onchange="updateWork('${doc.id}','color',this.value)" placeholder="Gradient CSS"/>
+                        </div>
+                        <button class="del-btn" onclick="deleteDoc('work','${doc.id}')">✕</button>
+                    `;
+                    container.appendChild(el);
+                });
+            });
+        }
+
+        async function addWork() {
+            const title = document.getElementById('workTitle').value.trim();
+            const desc = document.getElementById('workDesc').value.trim();
+            const img = document.getElementById('workImg').value.trim();
+            const color = document.getElementById('workColor').value.trim();
+            if (!title || !desc) return;
+            const snap = await db.collection('work').get();
+            await db.collection('work').add({ title, desc, img, color, order: snap.size });
+            document.getElementById('workTitle').value = '';
+            document.getElementById('workDesc').value = '';
+            document.getElementById('workImg').value = '';
+            document.getElementById('workColor').value = '';
+        }
+
+        function updateWork(id, field, val) {
+            db.collection('work').doc(id).update({ [field]: val });
+        }
+
+        // ── OFFERS ──
+        function loadOffersAdmin() {
+            db.collection('offers').orderBy('order').onSnapshot(snap => {
+                const container = document.getElementById('offersAdmin');
+                container.innerHTML = '';
+                snap.forEach(doc => {
+                    const d = doc.data();
+                    const el = document.createElement('div');
+                    el.className = 'admin-item';
+                    el.innerHTML = `
+                        <div class="admin-item-content">
+                            <input class="admin-inline" value="${d.icon}" onchange="updateOffer('${doc.id}','icon',this.value)" placeholder="Icon emoji"/>
+                            <input class="admin-inline" value="${d.title}" onchange="updateOffer('${doc.id}','title',this.value)" placeholder="Title"/>
+                            <textarea class="admin-inline" onchange="updateOffer('${doc.id}','desc',this.value)" rows="2">${d.desc}</textarea>
+                        </div>
+                        <button class="del-btn" onclick="deleteDoc('offers','${doc.id}')">✕</button>
+                    `;
+                    container.appendChild(el);
+                });
+            });
+        }
+
+        async function addOffer() {
+            const icon = document.getElementById('offerIcon').value.trim();
+            const title = document.getElementById('offerTitle').value.trim();
+            const desc = document.getElementById('offerDesc').value.trim();
+            if (!title || !desc) return;
+            const snap = await db.collection('offers').get();
+            await db.collection('offers').add({ icon, title, desc, order: snap.size });
+            document.getElementById('offerIcon').value = '';
+            document.getElementById('offerTitle').value = '';
+            document.getElementById('offerDesc').value = '';
+        }
+
+        function updateOffer(id, field, val) {
+            db.collection('offers').doc(id).update({ [field]: val });
+        }
+
+        // ── SHOP ──
+        function loadShopAdmin() {
+            db.collection('shop').orderBy('order').onSnapshot(snap => {
+                const container = document.getElementById('shopAdmin');
+                container.innerHTML = '';
+                snap.forEach(doc => {
+                    const d = doc.data();
+                    const el = document.createElement('div');
+                    el.className = 'admin-item';
+                    el.innerHTML = `
+                        <div class="admin-item-content">
+                            <input class="admin-inline" value="${d.badge}" onchange="updateShop('${doc.id}','badge',this.value)" placeholder="Badge"/>
+                            <input class="admin-inline" value="${d.name}" onchange="updateShop('${doc.id}','name',this.value)" placeholder="Name"/>
+                            <input class="admin-inline" type="number" value="${d.price}" onchange="updateShop('${doc.id}','price',this.value)" placeholder="Price"/>
+                            <textarea class="admin-inline" onchange="updateShopFeatures('${doc.id}',this.value)" rows="4">${d.features.join('\n')}</textarea>
+                        </div>
+                        <button class="del-btn" onclick="deleteDoc('shop','${doc.id}')">✕</button>
+                    `;
+                    container.appendChild(el);
+                });
+            });
+        }
+
+        async function addShopItem() {
+            const badge = document.getElementById('shopBadge').value.trim();
+            const name = document.getElementById('shopName').value.trim();
+            const price = document.getElementById('shopPrice').value.trim();
+            const features = document.getElementById('shopFeatures').value.split('\n').map(f => f.trim()).filter(Boolean);
+            const featured = document.getElementById('shopFeatured').checked;
+            if (!name || !price) return;
+            const snap = await db.collection('shop').get();
+            await db.collection('shop').add({ badge, name, price, features, featured, order: snap.size });
+            document.getElementById('shopBadge').value = '';
+            document.getElementById('shopName').value = '';
+            document.getElementById('shopPrice').value = '';
+            document.getElementById('shopFeatures').value = '';
+            document.getElementById('shopFeatured').checked = false;
+        }
+
+        function updateShop(id, field, val) {
+            db.collection('shop').doc(id).update({ [field]: val });
+        }
+
+        function updateShopFeatures(id, val) {
+            const features = val.split('\n').map(f => f.trim()).filter(Boolean);
+            db.collection('shop').doc(id).update({ features });
+        }
+
+        // ── SHARED ──
+        function deleteDoc(collection, id) {
+            if (confirm('Delete this item?')) db.collection(collection).doc(id).delete();
+        }
+
+        // Load all admin lists
+        loadFaqAdmin();
+        loadWorkAdmin();
+        loadOffersAdmin();
+        loadShopAdmin();
+    </script>
+</body>
+</html>
